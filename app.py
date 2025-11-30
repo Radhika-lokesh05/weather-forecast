@@ -1,7 +1,9 @@
 import os
+import threading
 from flask import Flask, render_template, request
 import requests
 from dotenv import load_dotenv
+import pyttsx3
 
 # Load .env file
 load_dotenv()
@@ -12,6 +14,18 @@ if not API_KEY:
 
 app = Flask(__name__)
 
+
+# -----------------------------
+#  SPEECH FUNCTION (SAFE FOR FLASK)
+# -----------------------------
+def speak(text):
+    def run_speech():
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+    threading.Thread(target=run_speech).start()
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     weather = None
@@ -19,6 +33,7 @@ def index():
 
     if request.method == "POST":
         city = request.form.get("city", "").strip()
+
         if not city:
             error = "Please enter a city name."
         else:
@@ -39,12 +54,27 @@ def index():
                         "pressure": data["main"].get("pressure"),
                         "wind_speed": data.get("wind", {}).get("speed"),
                     }
+
+                    # -----------------------------
+                    # SPEAK THE RESULT
+                    # -----------------------------
+                    speak(
+                        f"Weather in {weather['city']}. "
+                        f"Temperature is {weather['temp']} degrees. "
+                        f"It feels like {weather['feels_like']} degrees. "
+                        f"Condition: {weather['description']}."
+                    )
+
                 else:
                     error = data.get("message", "Could not fetch weather")
+                    speak("City not found. Please try again.")
+
             except requests.RequestException:
                 error = "Network error. Try again."
+                speak("Network error. Please try again.")
 
     return render_template("index.html", weather=weather, error=error)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
